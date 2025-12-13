@@ -1,0 +1,11 @@
+{
+  "name": "@research/agentic-ui-prototype",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Prototype for AI-controllable UI with state machines",
+  "scripts": {
+    "dev:server": "bun run ./mcp-server/src/index.ts",
+    "dev:frontend": "cd frontend && bun run dev",
+    "build:frontend": "cd frontend && bun run build"
+  }
+}
