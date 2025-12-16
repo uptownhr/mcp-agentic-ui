@@ -26,9 +26,8 @@ function formatTime(timestamp: string) {
           <span class="action-name">{{ entry.action }}</span>
           <span class="timestamp">{{ formatTime(entry.timestamp) }}</span>
         </div>
-        <div class="entry-result">
-          <span class="result-label">Result:</span>
-          <span class="result-text">"{{ entry.text || '(empty)' }}"</span>
+        <div class="entry-detail">
+          {{ entry.detail }}
         </div>
       </div>
     </div>
@@ -114,17 +113,9 @@ function formatTime(timestamp: string) {
   color: #666;
 }
 
-.entry-result {
+.entry-detail {
   font-size: 0.85rem;
-}
-
-.result-label {
-  color: #666;
-  margin-right: 6px;
-}
-
-.result-text {
   color: #aaa;
-  font-family: monospace;
+  word-break: break-word;
 }
 </style>

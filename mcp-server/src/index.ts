@@ -10,6 +10,7 @@ import {
   sendEvent,
   getAvailableActions,
   type TextMachineEvent,
+  type InputRequest,
 } from './machine.js';
 import { startWebSocketServer, broadcastState, closeWebSocketServer, isPortInUse } from './websocket.js';
 
@@ -25,10 +26,13 @@ const APP_INFO = {
     'Clear all text',
     'Undo changes (with history)',
     'Reset to initial state',
+    'Request user input via forms',
+    'Retrieve user-submitted input',
   ],
   stateDescription: {
     idle: 'No text is being displayed',
     displaying: 'Text is visible on screen',
+    waitingForInput: 'Waiting for user to submit input',
   },
 };
 
@@ -83,6 +87,41 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           required: ['action'],
         },
       },
+      {
+        name: 'show_input_form',
+        description: 'Display an input form to the user and request their input. Returns immediately - use get_user_input to retrieve the submitted value.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            prompt: {
+              type: 'string',
+              description: 'The question or prompt to display to the user',
+            },
+            inputType: {
+              type: 'string',
+              enum: ['text', 'textarea', 'number'],
+              description: 'Type of input field. Defaults to "text"',
+            },
+            placeholder: {
+              type: 'string',
+              description: 'Placeholder text for the input field',
+            },
+            defaultValue: {
+              type: 'string',
+              description: 'Default value to pre-fill in the input',
+            },
+          },
+          required: ['prompt'],
+        },
+      },
+      {
+        name: 'get_user_input',
+        description: 'Get the value submitted by the user after show_input_form was called. Returns status: pending (not yet submitted), submitted (with value), cancelled, or idle (no input requested).',
+        inputSchema: {
+          type: 'object',
+          properties: {},
+        },
+      },
     ],
   };
 });
@@ -116,12 +155,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             text: JSON.stringify(
               {
                 currentState: state,
-                text: context.text,
-                contentType: context.contentType,
-                textLength: context.text.length,
-                historyCount: context.history.length,
-                lastAction: context.lastAction,
-                lastError: context.lastError,
+                ...context,
                 availableActions,
               },
               null,
@@ -198,6 +232,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         historyCount: newContext.history.length,
         lastAction: newContext.lastAction,
         lastError: newContext.lastError,
+        inputRequest: newContext.inputRequest,
+        inputStatus: newContext.inputStatus,
+        userInput: newContext.userInput,
       });
 
       // Check if there was an error
@@ -227,6 +264,125 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
               newState: newState,
               text: newContext.text,
               availableActions: getAvailableActions(newState, newContext),
+            }),
+          },
+        ],
+      };
+    }
+
+    case 'show_input_form': {
+      const { prompt, inputType, placeholder, defaultValue } = args as {
+        prompt: string;
+        inputType?: 'text' | 'textarea' | 'number';
+        placeholder?: string;
+        defaultValue?: string;
+      };
+
+      // Generate unique request ID
+      const requestId = `input_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+      const request: InputRequest = {
+        prompt,
+        inputType: inputType || 'text',
+        placeholder,
+        defaultValue,
+        requestId,
+      };
+
+      const event: TextMachineEvent = { type: 'SHOW_INPUT', request };
+      const newSnapshot = sendEvent(event);
+      const newState = String(newSnapshot.value);
+      const newContext = newSnapshot.context;
+
+      // Broadcast to WebSocket clients
+      broadcastState({
+        currentState: newState,
+        text: newContext.text,
+        contentType: newContext.contentType,
+        historyCount: newContext.history.length,
+        lastAction: newContext.lastAction,
+        lastError: newContext.lastError,
+        inputRequest: newContext.inputRequest,
+        inputStatus: newContext.inputStatus,
+        userInput: newContext.userInput,
+      });
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              success: true,
+              message: 'Input form displayed. Use get_user_input to retrieve the submitted value.',
+              requestId,
+              currentState: newState,
+            }),
+          },
+        ],
+      };
+    }
+
+    case 'get_user_input': {
+      const snapshot = getSnapshot();
+      const context = snapshot.context;
+      const state = String(snapshot.value);
+
+      // Check current input status
+      if (state === 'waitingForInput') {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                status: 'pending',
+                message: 'User has not yet submitted their input. Try again later.',
+                prompt: context.inputRequest?.prompt,
+                requestId: context.inputRequest?.requestId,
+              }),
+            },
+          ],
+        };
+      }
+
+      if (context.inputStatus === 'submitted') {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                status: 'submitted',
+                value: context.userInput,
+                message: 'User submitted their input successfully.',
+              }),
+            },
+          ],
+        };
+      }
+
+      if (context.inputStatus === 'cancelled') {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                status: 'cancelled',
+                value: null,
+                message: 'User cancelled the input request.',
+              }),
+            },
+          ],
+        };
+      }
+
+      // No input was ever requested
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              status: 'idle',
+              value: null,
+              message: 'No input has been requested. Use show_input_form first.',
             }),
           },
         ],

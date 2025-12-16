@@ -3,8 +3,9 @@ import { useWebSocket } from './composables/useWebSocket';
 import TextDisplay from './components/TextDisplay.vue';
 import StateIndicator from './components/StateIndicator.vue';
 import ActionLog from './components/ActionLog.vue';
+import InputForm from './components/InputForm.vue';
 
-const { connected, state, actionLog } = useWebSocket();
+const { connected, state, actionLog, submitInput, cancelInput } = useWebSocket();
 </script>
 
 <template>
@@ -18,7 +19,20 @@ const { connected, state, actionLog } = useWebSocket();
 
     <main class="main">
       <div class="display-section">
-        <TextDisplay :text="state.text" :state="state.currentState" :content-type="state.contentType" />
+        <!-- Show InputForm when waiting for user input -->
+        <InputForm
+          v-if="state.currentState === 'waitingForInput' && state.inputRequest"
+          :request="state.inputRequest"
+          @submit="submitInput"
+          @cancel="(requestId) => cancelInput(requestId)"
+        />
+        <!-- Show TextDisplay otherwise -->
+        <TextDisplay
+          v-else
+          :text="state.text"
+          :state="state.currentState"
+          :content-type="state.contentType"
+        />
       </div>
 
       <div class="info-section">

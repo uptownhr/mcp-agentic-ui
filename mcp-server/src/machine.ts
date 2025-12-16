@@ -6,6 +6,18 @@ export interface HistoryEntry {
   contentType: 'text' | 'markdown';
 }
 
+// Input request type - describes a pending user input request
+export interface InputRequest {
+  prompt: string;
+  inputType: 'text' | 'textarea' | 'number';
+  placeholder?: string;
+  defaultValue?: string;
+  requestId: string;
+}
+
+// Input status type
+export type InputStatus = 'idle' | 'pending' | 'submitted' | 'cancelled';
+
 // Context type
 export interface TextMachineContext {
   text: string;
@@ -13,6 +25,10 @@ export interface TextMachineContext {
   history: HistoryEntry[];
   lastAction: string | null;
   lastError: string | null;
+  // User input fields
+  inputRequest: InputRequest | null;
+  userInput: string | null;
+  inputStatus: InputStatus;
 }
 
 // Event types
@@ -22,7 +38,11 @@ export type TextMachineEvent =
   | { type: 'APPEND_TEXT'; text: string }
   | { type: 'CLEAR_TEXT' }
   | { type: 'UNDO' }
-  | { type: 'RESET' };
+  | { type: 'RESET' }
+  // User input events
+  | { type: 'SHOW_INPUT'; request: InputRequest }
+  | { type: 'SUBMIT_INPUT'; value: string; requestId: string }
+  | { type: 'CANCEL_INPUT'; requestId: string };
 
 // Initial context
 const initialContext: TextMachineContext = {
@@ -31,6 +51,9 @@ const initialContext: TextMachineContext = {
   history: [],
   lastAction: null,
   lastError: null,
+  inputRequest: null,
+  userInput: null,
+  inputStatus: 'idle',
 };
 
 // Create the state machine
@@ -67,6 +90,16 @@ export const textMachine = createMachine({
             history: ({ context }) => [...context.history, { text: context.text, contentType: context.contentType }],
             text: ({ context, event }) => context.text + event.text,
             lastAction: () => 'append_text',
+            lastError: () => null,
+          }),
+        },
+        SHOW_INPUT: {
+          target: 'waitingForInput',
+          actions: assign({
+            inputRequest: ({ event }) => event.request,
+            userInput: () => null,
+            inputStatus: () => 'pending' as const,
+            lastAction: () => 'show_input',
             lastError: () => null,
           }),
         },
@@ -130,6 +163,48 @@ export const textMachine = createMachine({
           target: 'idle',
           actions: assign(initialContext),
         },
+        SHOW_INPUT: {
+          target: 'waitingForInput',
+          actions: assign({
+            inputRequest: ({ event }) => event.request,
+            userInput: () => null,
+            inputStatus: () => 'pending' as const,
+            lastAction: () => 'show_input',
+            lastError: () => null,
+          }),
+        },
+      },
+    },
+    waitingForInput: {
+      on: {
+        SUBMIT_INPUT: {
+          target: 'displaying',
+          guard: ({ context, event }) =>
+            context.inputRequest?.requestId === event.requestId,
+          actions: assign({
+            userInput: ({ event }) => event.value,
+            inputStatus: () => 'submitted' as const,
+            inputRequest: () => null,
+            lastAction: () => 'input_submitted',
+            lastError: () => null,
+          }),
+        },
+        CANCEL_INPUT: {
+          target: 'displaying',
+          guard: ({ context, event }) =>
+            context.inputRequest?.requestId === event.requestId,
+          actions: assign({
+            userInput: () => null,
+            inputStatus: () => 'cancelled' as const,
+            inputRequest: () => null,
+            lastAction: () => 'input_cancelled',
+            lastError: () => null,
+          }),
+        },
+        RESET: {
+          target: 'idle',
+          actions: assign(initialContext),
+        },
       },
     },
   },
@@ -154,7 +229,17 @@ export function getAvailableActions(
 ): AvailableAction[] {
   const actions: AvailableAction[] = [];
 
-  // Actions available in both states
+  // When waiting for input, only reset is available (submit/cancel come from frontend)
+  if (state === 'waitingForInput') {
+    actions.push({
+      name: 'reset',
+      description: 'Reset the display to initial state (cancels pending input)',
+      inputSchema: { type: 'object', properties: {} },
+    });
+    return actions;
+  }
+
+  // Actions available in idle and displaying states
   actions.push({
     name: 'set_text',
     description: 'Set the displayed text to a new value',
