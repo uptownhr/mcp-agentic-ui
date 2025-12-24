@@ -14,6 +14,7 @@ export interface StateUpdate {
   inputRequest: InputRequest | null;
   inputStatus: InputStatus;
   userInput: string | null;
+  userContext?: Record<string, unknown>;
 }
 
 // Incoming message types from frontend
@@ -50,6 +51,7 @@ export function startWebSocketServer(port: number) {
           inputRequest: context.inputRequest,
           inputStatus: context.inputStatus,
           userInput: context.userInput,
+          userContext: context.userContext,
           availableActions: getAvailableActions(state, context),
         },
       })
@@ -143,6 +145,7 @@ function handleIncomingMessage(message: IncomingMessage) {
     inputRequest: newContext.inputRequest,
     inputStatus: newContext.inputStatus,
     userInput: newContext.userInput,
+    userContext: newContext.userContext,
   });
 }
 

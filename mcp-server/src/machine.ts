@@ -13,6 +13,7 @@ export interface InputRequest {
   placeholder?: string;
   defaultValue?: string;
   requestId: string;
+  key?: string; // Optional key for storing in userContext
 }
 
 // Input status type
@@ -29,6 +30,8 @@ export interface TextMachineContext {
   inputRequest: InputRequest | null;
   userInput: string | null;
   inputStatus: InputStatus;
+  // Persistent user context - stores keyed values across multiple inputs
+  userContext: Record<string, unknown>;
 }
 
 // Event types
@@ -42,7 +45,10 @@ export type TextMachineEvent =
   // User input events
   | { type: 'SHOW_INPUT'; request: InputRequest }
   | { type: 'SUBMIT_INPUT'; value: string; requestId: string }
-  | { type: 'CANCEL_INPUT'; requestId: string };
+  | { type: 'CANCEL_INPUT'; requestId: string }
+  // User context events
+  | { type: 'SET_USER_CONTEXT'; key: string; value: unknown }
+  | { type: 'CLEAR_USER_CONTEXT' };
 
 // Initial context
 const initialContext: TextMachineContext = {
@@ -54,6 +60,7 @@ const initialContext: TextMachineContext = {
   inputRequest: null,
   userInput: null,
   inputStatus: 'idle',
+  userContext: {},
 };
 
 // Create the state machine
@@ -100,6 +107,23 @@ export const textMachine = createMachine({
             userInput: () => null,
             inputStatus: () => 'pending' as const,
             lastAction: () => 'show_input',
+            lastError: () => null,
+          }),
+        },
+        SET_USER_CONTEXT: {
+          actions: assign({
+            userContext: ({ context, event }) => ({
+              ...context.userContext,
+              [event.key]: event.value,
+            }),
+            lastAction: () => 'set_user_context',
+            lastError: () => null,
+          }),
+        },
+        CLEAR_USER_CONTEXT: {
+          actions: assign({
+            userContext: () => ({}),
+            lastAction: () => 'clear_user_context',
             lastError: () => null,
           }),
         },
@@ -173,6 +197,23 @@ export const textMachine = createMachine({
             lastError: () => null,
           }),
         },
+        SET_USER_CONTEXT: {
+          actions: assign({
+            userContext: ({ context, event }) => ({
+              ...context.userContext,
+              [event.key]: event.value,
+            }),
+            lastAction: () => 'set_user_context',
+            lastError: () => null,
+          }),
+        },
+        CLEAR_USER_CONTEXT: {
+          actions: assign({
+            userContext: () => ({}),
+            lastAction: () => 'clear_user_context',
+            lastError: () => null,
+          }),
+        },
       },
     },
     waitingForInput: {
@@ -184,6 +225,14 @@ export const textMachine = createMachine({
           actions: assign({
             userInput: ({ event }) => event.value,
             inputStatus: () => 'submitted' as const,
+            // Store in userContext if key was provided
+            userContext: ({ context, event }) => {
+              const key = context.inputRequest?.key;
+              if (key) {
+                return { ...context.userContext, [key]: event.value };
+              }
+              return context.userContext;
+            },
             inputRequest: () => null,
             lastAction: () => 'input_submitted',
             lastError: () => null,

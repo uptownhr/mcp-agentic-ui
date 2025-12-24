@@ -89,13 +89,17 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       },
       {
         name: 'show_input_form',
-        description: 'Display an input form to the user and request their input. Returns immediately - use get_user_input to retrieve the submitted value.',
+        description: 'Display an input form to the user and request their input. Returns immediately - use get_user_input to retrieve the submitted value. If a key is provided, the response will also be stored in userContext for later retrieval.',
         inputSchema: {
           type: 'object',
           properties: {
             prompt: {
               type: 'string',
               description: 'The question or prompt to display to the user',
+            },
+            key: {
+              type: 'string',
+              description: 'Optional key to store the response in userContext (e.g., "userName", "preferredLanguage"). If provided, the value will persist across multiple inputs.',
             },
             inputType: {
               type: 'string',
@@ -117,6 +121,39 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       {
         name: 'get_user_input',
         description: 'Get the value submitted by the user after show_input_form was called. Returns status: pending (not yet submitted), submitted (with value), cancelled, or idle (no input requested).',
+        inputSchema: {
+          type: 'object',
+          properties: {},
+        },
+      },
+      {
+        name: 'get_user_context',
+        description: 'Get all stored user context values. Returns the persistent key-value store that accumulates across multiple show_input_form calls with keys.',
+        inputSchema: {
+          type: 'object',
+          properties: {},
+        },
+      },
+      {
+        name: 'set_user_context',
+        description: 'Directly set a value in the user context without showing an input form. Useful for storing computed values or information gathered from conversation.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            key: {
+              type: 'string',
+              description: 'The key to store the value under',
+            },
+            value: {
+              description: 'The value to store (can be string, number, boolean, object, or array)',
+            },
+          },
+          required: ['key', 'value'],
+        },
+      },
+      {
+        name: 'clear_user_context',
+        description: 'Clear all stored user context values. Resets the persistent store to empty.',
         inputSchema: {
           type: 'object',
           properties: {},
@@ -235,6 +272,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         inputRequest: newContext.inputRequest,
         inputStatus: newContext.inputStatus,
         userInput: newContext.userInput,
+        userContext: newContext.userContext,
       });
 
       // Check if there was an error
@@ -271,8 +309,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     }
 
     case 'show_input_form': {
-      const { prompt, inputType, placeholder, defaultValue } = args as {
+      const { prompt, key, inputType, placeholder, defaultValue } = args as {
         prompt: string;
+        key?: string;
         inputType?: 'text' | 'textarea' | 'number';
         placeholder?: string;
         defaultValue?: string;
@@ -287,6 +326,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         placeholder,
         defaultValue,
         requestId,
+        key, // Include key for userContext storage
       };
 
       const event: TextMachineEvent = { type: 'SHOW_INPUT', request };
@@ -305,6 +345,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         inputRequest: newContext.inputRequest,
         inputStatus: newContext.inputStatus,
         userInput: newContext.userInput,
+        userContext: newContext.userContext,
       });
 
       return {
@@ -383,6 +424,96 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
               status: 'idle',
               value: null,
               message: 'No input has been requested. Use show_input_form first.',
+            }),
+          },
+        ],
+      };
+    }
+
+    case 'get_user_context': {
+      const snapshot = getSnapshot();
+      const context = snapshot.context;
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              userContext: context.userContext,
+              keyCount: Object.keys(context.userContext).length,
+              message: Object.keys(context.userContext).length > 0
+                ? 'User context contains stored values.'
+                : 'User context is empty. Use show_input_form with a key or set_user_context to add values.',
+            }),
+          },
+        ],
+      };
+    }
+
+    case 'set_user_context': {
+      const { key, value } = args as { key: string; value: unknown };
+
+      const event: TextMachineEvent = { type: 'SET_USER_CONTEXT', key, value };
+      const newSnapshot = sendEvent(event);
+      const newContext = newSnapshot.context;
+
+      // Broadcast to WebSocket clients
+      broadcastState({
+        currentState: String(newSnapshot.value),
+        text: newContext.text,
+        contentType: newContext.contentType,
+        historyCount: newContext.history.length,
+        lastAction: newContext.lastAction,
+        lastError: newContext.lastError,
+        inputRequest: newContext.inputRequest,
+        inputStatus: newContext.inputStatus,
+        userInput: newContext.userInput,
+        userContext: newContext.userContext,
+      });
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              success: true,
+              key,
+              value,
+              userContext: newContext.userContext,
+              message: `Stored "${key}" in user context.`,
+            }),
+          },
+        ],
+      };
+    }
+
+    case 'clear_user_context': {
+      const event: TextMachineEvent = { type: 'CLEAR_USER_CONTEXT' };
+      const newSnapshot = sendEvent(event);
+      const newContext = newSnapshot.context;
+
+      // Broadcast to WebSocket clients
+      broadcastState({
+        currentState: String(newSnapshot.value),
+        text: newContext.text,
+        contentType: newContext.contentType,
+        historyCount: newContext.history.length,
+        lastAction: newContext.lastAction,
+        lastError: newContext.lastError,
+        inputRequest: newContext.inputRequest,
+        inputStatus: newContext.inputStatus,
+        userInput: newContext.userInput,
+        userContext: newContext.userContext,
+      });
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              success: true,
+              userContext: {},
+              message: 'User context has been cleared.',
             }),
           },
         ],
