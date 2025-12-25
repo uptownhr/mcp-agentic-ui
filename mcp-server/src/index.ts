@@ -9,6 +9,7 @@ import {
   getSnapshot,
   sendEvent,
   getAvailableActions,
+  getActor,
   isMultiFieldRequest,
   type TextMachineEvent,
   type InputRequest,
@@ -127,7 +128,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       },
       {
         name: 'get_user_input',
-        description: 'Get the value submitted by the user after show_input_form was called. Returns status: pending (not yet submitted), submitted (with value), cancelled, or idle (no input requested).',
+        description: 'Get the value submitted by the user after show_input_form was called. This tool uses LONG-POLLING: it will BLOCK and wait until the user submits or cancels the input, then return the result. Returns status: submitted (with value), cancelled, or idle (no input was requested).',
         inputSchema: {
           type: 'object',
           properties: {},
@@ -430,26 +431,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       const context = snapshot.context;
       const state = String(snapshot.value);
 
-      // Check current input status
-      if (state === 'waitingForInput') {
-        const isMultiField = isMultiFieldRequest(context.inputRequest);
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify({
-                status: 'pending',
-                message: 'User has not yet submitted their input. Try again later.',
-                isMultiField,
-                prompt: isMultiField ? undefined : (context.inputRequest as InputRequest)?.prompt,
-                fieldCount: isMultiField ? (context.inputRequest as MultiFieldRequest)?.fields.length : undefined,
-                requestId: context.inputRequest?.requestId,
-              }),
-            },
-          ],
-        };
-      }
-
+      // If already submitted, return immediately
       if (context.inputStatus === 'submitted') {
         // Check if this was a multi-field submission
         if (context.multiFieldInput) {
@@ -481,6 +463,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         };
       }
 
+      // If already cancelled, return immediately
       if (context.inputStatus === 'cancelled') {
         return {
           content: [
@@ -496,7 +479,82 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         };
       }
 
-      // No input was ever requested
+      // If waiting for input, use LONG-POLLING: block until user submits or cancels
+      if (state === 'waitingForInput') {
+        const isMultiField = isMultiFieldRequest(context.inputRequest);
+        console.error(`[Long-Polling] Waiting for user input... (isMultiField: ${isMultiField})`);
+        const startTime = Date.now();
+
+        return new Promise((resolve) => {
+          const actor = getActor();
+
+          const subscription = actor.subscribe((newSnapshot) => {
+            const newState = String(newSnapshot.value);
+            const newContext = newSnapshot.context;
+
+            // Check if user submitted
+            if (newContext.inputStatus === 'submitted') {
+              const elapsed = Date.now() - startTime;
+              console.error(`[Long-Polling] Input submitted after ${elapsed}ms`);
+              subscription.unsubscribe();
+
+              // Check if this was a multi-field submission
+              if (newContext.multiFieldInput) {
+                resolve({
+                  content: [
+                    {
+                      type: 'text',
+                      text: JSON.stringify({
+                        status: 'submitted',
+                        values: newContext.multiFieldInput,
+                        message: 'User submitted multi-field form successfully.',
+                        waitTime: elapsed,
+                      }),
+                    },
+                  ],
+                });
+              } else {
+                resolve({
+                  content: [
+                    {
+                      type: 'text',
+                      text: JSON.stringify({
+                        status: 'submitted',
+                        value: newContext.userInput,
+                        message: 'User submitted their input successfully.',
+                        waitTime: elapsed,
+                      }),
+                    },
+                  ],
+                });
+              }
+            }
+
+            // Check if user cancelled
+            if (newContext.inputStatus === 'cancelled') {
+              const elapsed = Date.now() - startTime;
+              console.error(`[Long-Polling] Input cancelled after ${elapsed}ms`);
+              subscription.unsubscribe();
+
+              resolve({
+                content: [
+                  {
+                    type: 'text',
+                    text: JSON.stringify({
+                      status: 'cancelled',
+                      value: null,
+                      message: 'User cancelled the input request.',
+                      waitTime: elapsed,
+                    }),
+                  },
+                ],
+              });
+            }
+          });
+        });
+      }
+
+      // No input was ever requested (idle state)
       return {
         content: [
           {

@@ -30,19 +30,37 @@ userContext: {
 ---
 
 ### Issue #2: No Multi-Field Forms
-**Status:** Active - Needs Enhancement
+**Status:** ✅ RESOLVED (2025-12-24)
 **Description:** Can only ask one question at a time. No ability to present multiple form fields in a single view.
 
-**Desired Behavior:** Support for multi-field forms:
+**Solution Implemented:** Added `show_multi_form` tool with support for multiple field types.
+
+**Supported Field Types:**
+- `text` - Single line text input
+- `textarea` - Multi-line text input
+- `number` - Numeric input
+- `checkbox` - Boolean toggle
+- `select` - Dropdown with options
+
+**Usage:**
 ```javascript
 show_multi_form({
+  content: "## Optional markdown header",
   fields: [
-    { key: "name", label: "Your Name", type: "text" },
-    { key: "role", label: "Your Role", type: "text" },
-    { key: "experience", label: "Years of Experience", type: "number" }
+    { key: "name", label: "Your Name", type: "text", required: true },
+    { key: "role", label: "Your Role", type: "select", options: ["Dev", "Designer"] },
+    { key: "experience", label: "Years", type: "number", defaultValue: 0 },
+    { key: "notify", label: "Notifications", type: "checkbox" }
   ]
 })
 ```
+
+**Response via `get_user_input`:**
+```javascript
+{ status: "submitted", values: { name: "...", role: "...", ... } }
+```
+
+All field values are automatically stored in `userContext[field.key]`.
 
 ---
 
@@ -70,30 +88,33 @@ This allows Claude to present information AND gather feedback in a single unifie
 ---
 
 ### Issue #4: No Auto-Trigger from UI Responses
-**Status:** Active - Architectural Limitation
+**Status:** ✅ RESOLVED (2025-12-24)
 **Priority:** Medium
 **Description:** When user submits input in Agentic UI, Claude cannot automatically be notified/triggered. User must switch back to Claude Code terminal to continue the conversation.
 
-**Current Flow:**
-1. Claude shows input form in Agentic UI
-2. User submits response in Agentic UI
-3. User must manually go back to Claude Code and say something
-4. Claude then calls `get_user_input` to retrieve the value
+**Solution Implemented:** Long-polling in `get_user_input` tool
 
-**Ideal Flow:**
-1. Claude shows input form in Agentic UI
-2. User submits response in Agentic UI
-3. Claude automatically receives the input and continues
+**How It Works:**
+1. Claude calls `show_input_form` → form displays in UI
+2. Claude calls `get_user_input` → tool **blocks** (holds the request open)
+3. User submits in UI → XState actor state changes
+4. Actor subscription fires → Promise resolves immediately
+5. Claude receives input with zero delay
 
-**Technical Challenge:** MCP is pull-based (Claude calls tools), not push-based (tools can't notify Claude). This is a fundamental limitation of the MCP protocol.
+**Technical Details:**
+- Uses XState actor subscription to detect state changes
+- Promise-based blocking until `inputStatus` becomes 'submitted' or 'cancelled'
+- Returns `waitTime` in response showing how long the tool blocked
+- Tested: No timeout detected after 15+ minutes of blocking
 
-**Potential Workarounds:**
-- Polling: Claude periodically checks for input (wasteful)
-- Webhooks: If Claude Code supported incoming webhooks
-- User instruction: Tell user to press Enter in Claude Code after submitting
-- Future MCP enhancement: Server-sent events or notifications
+**Key Finding:** Claude Code MCP tool calls have **no practical timeout limit** (tested 15+ minutes), making long-polling fully viable.
 
-**Note:** Deferring this until after user context implementation is complete.
+**Before vs After:**
+| Before | After |
+|--------|-------|
+| User submits → must press Enter in Claude Code | User submits → Claude instantly receives |
+| Manual step required | Fully automatic |
+| Regular polling (wasteful) | Zero wasted calls |
 
 ---
 
@@ -146,5 +167,7 @@ interface PersistedState {
 1. ~~**Issue #1** - User context with keyed storage~~ ✅ DONE
 2. ~~**Issue #3** - Combined display + input~~ ✅ DONE
 3. ~~**Issue #5** - State persistence (Option B - full restoration)~~ ✅ DONE
-4. **Issue #2** - Multi-field forms
-5. **Issue #4** - Auto-trigger (requires workaround research)
+4. ~~**Issue #2** - Multi-field forms~~ ✅ DONE
+5. ~~**Issue #4** - Auto-trigger (long-polling solution)~~ ✅ DONE
+
+**All issues resolved!**
