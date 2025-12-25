@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { watch, computed, reactive } from 'vue';
 import type { MultiFieldRequest, FormField } from '../composables/useWebSocket';
-import MermaidDisplay from './MermaidDisplay.vue';
+import MarkdownDisplay from './MarkdownDisplay.vue';
 
 const props = defineProps<{
   request: MultiFieldRequest;
@@ -70,7 +70,7 @@ function getInputType(field: FormField): string {
   <div class="multi-field-form" :class="{ 'has-content': hasContent }">
     <!-- Markdown content section (when provided) -->
     <div v-if="hasContent" class="content-section">
-      <MermaidDisplay :content="request.content!" />
+      <MarkdownDisplay :content="request.content!" />
     </div>
 
     <!-- Form section -->

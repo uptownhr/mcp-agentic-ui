@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue';
 import type { InputRequest } from '../composables/useWebSocket';
-import MermaidDisplay from './MermaidDisplay.vue';
+import MarkdownDisplay from './MarkdownDisplay.vue';
 
 const props = defineProps<{
   request: InputRequest;
@@ -34,7 +34,7 @@ function handleCancel() {
   <div class="input-form" :class="{ 'has-content': hasContent }">
     <!-- Markdown content section (when provided) -->
     <div v-if="hasContent" class="content-section">
-      <MermaidDisplay :content="request.content!" />
+      <MarkdownDisplay :content="request.content!" />
     </div>
 
     <!-- Input section -->

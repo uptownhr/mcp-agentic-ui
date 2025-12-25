@@ -16,6 +16,8 @@ const MarkstreamVue = defineAsyncComponent(() => import('markstream-vue'));
         <MarkstreamVue
           :content="content"
           :enable-mermaid="true"
+          :enable-monaco="false"
+          :enable-shiki="false"
           class="markdown-content"
         />
       </template>

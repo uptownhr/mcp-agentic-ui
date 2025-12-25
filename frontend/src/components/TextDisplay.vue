@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import MermaidDisplay from './MermaidDisplay.vue';
+import MarkdownDisplay from './MarkdownDisplay.vue';
 import MultiFieldForm from './MultiFieldForm.vue';
 import {
   isMultiFieldRequest,
@@ -107,7 +107,7 @@ function handleMultiFormCancel(requestId: string) {
     <div class="content" :class="{ 'markdown-mode': isMarkdown, 'has-input': isWaitingForInput }">
       <template v-if="displayContent">
         <!-- Markdown rendering -->
-        <MermaidDisplay v-if="isMarkdown" :content="displayContent" />
+        <MarkdownDisplay v-if="isMarkdown" :content="displayContent" />
         <!-- Plain text -->
         <div v-else class="plain-text">{{ displayContent }}</div>
       </template>
