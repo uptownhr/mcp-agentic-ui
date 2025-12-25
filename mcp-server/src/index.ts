@@ -17,6 +17,8 @@ import {
   type FormField,
 } from './machine.js';
 import { startWebSocketServer, broadcastState, closeWebSocketServer, isPortInUse } from './websocket.js';
+import { startHTTPServer, closeHTTPServer, isProductionMode } from './http-server.js';
+import * as path from 'node:path';
 
 // App description
 const APP_INFO = {
@@ -716,13 +718,18 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 });
 
 const WS_PORT = 8765;
+const HTTP_PORT = 3000;
+const DIST_PATH = path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'dist');
 
 // Graceful shutdown handler
 async function shutdown(signal: string) {
   console.error(`\nReceived ${signal}, shutting down gracefully...`);
 
   try {
-    await closeWebSocketServer();
+    await Promise.all([
+      closeWebSocketServer(),
+      closeHTTPServer(),
+    ]);
     console.error('Cleanup complete, exiting');
     process.exit(0);
   } catch (err) {
@@ -739,7 +746,7 @@ process.on('SIGHUP', () => shutdown('SIGHUP'));
 // Handle uncaught errors
 process.on('uncaughtException', async (err) => {
   console.error('Uncaught exception:', err);
-  await closeWebSocketServer();
+  await Promise.all([closeWebSocketServer(), closeHTTPServer()]);
   process.exit(1);
 });
 
@@ -756,6 +763,14 @@ async function main() {
 
   // Start WebSocket server for frontend
   startWebSocketServer(WS_PORT);
+
+  // In production mode, serve the built frontend
+  const isProd = isProductionMode(DIST_PATH);
+  if (isProd) {
+    startHTTPServer(HTTP_PORT, DIST_PATH);
+  } else {
+    console.error('[HTTP] Dev mode: Run frontend separately with `cd frontend && bun run dev`');
+  }
 
   // Start MCP server on stdio
   const transport = new StdioServerTransport();

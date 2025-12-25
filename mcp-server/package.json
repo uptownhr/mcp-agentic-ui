@@ -1,12 +1,36 @@
 {
   "name": "@zabaca/pane",
   "version": "0.1.0",
-  "private": true,
+  "description": "AI-controllable UI canvas with state machine architecture",
   "type": "module",
+  "bin": {
+    "pane": "./src/index.ts"
+  },
   "scripts": {
     "dev": "bun run src/index.ts",
-    "build": "bun build src/index.ts --outdir dist --target node"
+    "build:frontend": "cd ../frontend && bun run build",
+    "build:copy": "rm -rf dist && cp -r ../frontend/dist .",
+    "build": "bun run build:frontend && bun run build:copy",
+    "prepublishOnly": "bun run build"
   },
+  "files": [
+    "src/",
+    "dist/"
+  ],
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "claude",
+    "ai",
+    "ui",
+    "state-machine"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Zabaca/pane.git"
+  },
+  "author": "Zabaca",
+  "license": "MIT",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",
     "xstate": "^5.0.0",

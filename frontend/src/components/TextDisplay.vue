@@ -34,7 +34,7 @@ watch(() => props.inputRequest?.requestId, () => {
 
 // Computed properties
 const isWaitingForInput = computed(() => props.state === 'waitingForInput' && props.inputRequest);
-const isMultiField = computed(() => isMultiFieldRequest(props.inputRequest));
+const isMultiField = computed(() => isMultiFieldRequest(props.inputRequest ?? null));
 const isSingleField = computed(() => isWaitingForInput.value && !isMultiField.value);
 const hasInputContent = computed(() => !!props.inputRequest?.content);
 

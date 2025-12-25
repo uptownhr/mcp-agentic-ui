@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, computed, reactive } from 'vue';
+import { watch, computed, reactive } from 'vue';
 import type { MultiFieldRequest, FormField } from '../composables/useWebSocket';
 import MermaidDisplay from './MermaidDisplay.vue';
 
@@ -14,9 +14,12 @@ const emit = defineEmits<{
   cancel: [requestId: string];
 }>();
 
+// Form value type
+type FormValue = string | number | boolean;
+
 // Initialize form values from default values
-function initFormValues(): Record<string, unknown> {
-  const values: Record<string, unknown> = {};
+function initFormValues(): Record<string, FormValue> {
+  const values: Record<string, FormValue> = {};
   for (const field of props.request.fields) {
     if (field.defaultValue !== undefined) {
       values[field.key] = field.defaultValue;
@@ -31,7 +34,7 @@ function initFormValues(): Record<string, unknown> {
   return values;
 }
 
-const formValues = reactive<Record<string, unknown>>(initFormValues());
+const formValues = reactive<Record<string, FormValue>>(initFormValues());
 
 // Reset values when request changes
 watch(() => props.request.requestId, () => {
@@ -83,7 +86,8 @@ function getInputType(field: FormField): string {
           <textarea
             v-if="field.type === 'textarea'"
             :id="field.key"
-            v-model="formValues[field.key]"
+            :value="formValues[field.key] as string"
+            @input="formValues[field.key] = ($event.target as HTMLTextAreaElement).value"
             :placeholder="field.placeholder"
             class="input textarea"
             rows="3"

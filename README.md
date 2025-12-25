@@ -1,8 +1,22 @@
 # Pane
 
-AI-controllable UI canvas with state machine architecture.
+AI-controllable UI canvas for Claude Code.
 
 ![Demo](assets/agentic-ui-demo.gif)
+
+## Getting Started (30 seconds)
+
+```bash
+claude mcp add pane -- npx @zabaca/pane
+```
+
+Then open **http://localhost:3000** and ask Claude:
+
+> *"Use Pane to show me a welcome message"*
+
+That's it!
+
+---
 
 ## Architecture
 
@@ -12,42 +26,6 @@ Claude Code <--stdio--> MCP Server <--WebSocket--> Vue Frontend
                         XState Machine
                         (holds state)
 ```
-
-## Quick Start
-
-### 1. Install Dependencies
-
-```bash
-cd mcp-server && bun install
-cd frontend && bun install
-```
-
-### 2. Start the Frontend
-
-```bash
-cd frontend
-bun run dev
-# Opens at http://localhost:3000
-```
-
-### 3. Add MCP Server to Claude Code
-
-Add to your Claude Code MCP settings:
-
-```json
-{
-  "mcpServers": {
-    "pane": {
-      "command": "bun",
-      "args": ["run", "/path/to/pane/mcp-server/src/index.ts"]
-    }
-  }
-}
-```
-
-### 4. Restart Claude Code
-
-After adding the MCP server config, restart Claude Code to load the new tools.
 
 ## Features
 
