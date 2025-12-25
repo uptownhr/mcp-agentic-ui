@@ -1,18 +1,39 @@
 # Pane
 
-AI-controllable UI canvas for Claude Code.
+AI-controllable UI canvas with MCP support (Claude Code, Cursor, and more).
 
 ![Demo](assets/agentic-ui-demo.gif)
 
-## Getting Started (30 seconds)
+## Getting Started
 
 **Requires [Bun](https://bun.sh)** (for TypeScript execution)
+
+### Claude Code (30 seconds)
 
 ```bash
 claude mcp add pane -- bunx @zabaca/pane
 ```
 
-Then open **http://localhost:3000** and ask Claude:
+### Cursor
+
+Add to your Cursor MCP settings (`~/.cursor/mcp.json` or via Settings > MCP):
+
+```json
+{
+  "mcpServers": {
+    "pane": {
+      "command": "bunx",
+      "args": ["--bun", "@zabaca/pane"]
+    }
+  }
+}
+```
+
+Then restart Cursor.
+
+### Using Pane
+
+Open **http://localhost:3000** and ask your AI:
 
 > *"Use Pane to show me a welcome message"*
 
