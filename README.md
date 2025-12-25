@@ -6,8 +6,10 @@ AI-controllable UI canvas for Claude Code.
 
 ## Getting Started (30 seconds)
 
+**Requires [Bun](https://bun.sh)** (for TypeScript execution)
+
 ```bash
-claude mcp add pane -- npx @zabaca/pane
+claude mcp add pane -- bunx @zabaca/pane
 ```
 
 Then open **http://localhost:3000** and ask Claude:
