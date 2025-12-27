@@ -130,11 +130,11 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           properties: {
             action: {
               type: 'string',
-              description: 'The action name (e.g., set_text, set_markdown, append_text, clear_text, undo, reset)',
+              description: 'The action name (e.g., set_markdown, append, undo, reset)',
             },
             payload: {
               type: 'object',
-              description: 'Action payload - for set_text/append_text use { text: "..." }, for set_markdown use { markdown: "..." }',
+              description: 'Action payload - for set_markdown use { markdown: "..." }, for append use { text: "..." }',
             },
           },
           required: ['action'],
@@ -336,14 +336,6 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       // Map action names to events
       let event: TextMachineEvent;
       switch (action) {
-        case 'set_text':
-          if (!payload?.text) {
-            return {
-              content: [{ type: 'text', text: JSON.stringify({ success: false, error: 'set_text requires a "text" field in payload' }) }],
-            };
-          }
-          event = { type: 'SET_TEXT', text: String(payload.text) };
-          break;
         case 'set_markdown':
           if (!payload?.markdown) {
             return {
@@ -352,16 +344,13 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           }
           event = { type: 'SET_MARKDOWN', markdown: String(payload.markdown) };
           break;
-        case 'append_text':
+        case 'append':
           if (!payload?.text) {
             return {
-              content: [{ type: 'text', text: JSON.stringify({ success: false, error: 'append_text requires a "text" field in payload' }) }],
+              content: [{ type: 'text', text: JSON.stringify({ success: false, error: 'append requires a "text" field in payload' }) }],
             };
           }
-          event = { type: 'APPEND_TEXT', text: String(payload.text) };
-          break;
-        case 'clear_text':
-          event = { type: 'CLEAR_TEXT' };
+          event = { type: 'APPEND', text: String(payload.text) };
           break;
         case 'undo':
           event = { type: 'UNDO' };
